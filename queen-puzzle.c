@@ -78,16 +78,28 @@ int main(int argc, char*argv[]) {
       }
     }else{
       int *perm = (int *)calloc(n, sizeof(int));
-      MPI_Recv(perm,n,MPI_INT,1,0,MPI_COMM_WORLD,&status);
+      char msg[100];
+      
+      for( i = rnk+1; i < max; i+=(sze-1) ) {
+        //printf("aguardando receber de %d\n", i);
+        MPI_Recv(msg,100,MPI_CHAR,1,0,MPI_COMM_WORLD,&status);
+        
+        
+        if (msg[0] != 'x'){
+          printf("%s\n",msg);
+        }
+        
 
-      for (int x = 0; x < n; x++)
-        printf("%d ", perm[x]);
-      printf("\n");
+      }
+
+      
+
+
 
     }
 
     // reduce subtotal into grand total
-    //MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
 
   }
@@ -122,6 +134,7 @@ int nqueens(int proc, ull i, ull n) {
   int a, b = 0;
   int *fact = (int *)calloc(n, sizeof(int));
   int *perm = (int *)calloc(n, sizeof(int));
+  char msg[100];
 
 //printf("sou o processo %d e estou calculando a combinacao %d para tamanho %d\n", proc, i, n);
 
@@ -171,7 +184,12 @@ int nqueens(int proc, ull i, ull n) {
     for(int k = j+1, dist = 1; k < (int)n; k++, dist++) {
       // check if the value +/- dist is equal (means its a diagnoal)
       if(val - dist == perm[k] || val + dist  == perm[k]) {
-        free(perm);
+        //printf("vou enviar erro %d\n", proc);
+        //perm[0] = -1;
+        //MPI_Send(perm,n,MPI_INT,0,0,MPI_COMM_WORLD);
+        msg[0] = 'x';
+        MPI_Send(msg,100,MPI_CHAR,0,0,MPI_COMM_WORLD);
+        //free(perm);
         //printf("erro\n");
         return 0;
       }
@@ -181,7 +199,12 @@ int nqueens(int proc, ull i, ull n) {
     for(int k = j-1, dist = 1; k >= 0; k--, dist++) {
       // check if the value +/- dist is equal (means its a diagonal)
       if(val - dist == perm[k] || val + dist  == perm[k]) {
-        free(perm);
+        //printf("vou enviar erro %d\n", proc);
+        //perm[0] = -1;
+        //MPI_Send(perm,n,MPI_INT,0,0,MPI_COMM_WORLD);
+        msg[0] = 'x';
+        MPI_Send(msg,100,MPI_CHAR,0,0,MPI_COMM_WORLD);
+        //free(perm);
         //printf("erro\n");
         return 0;
       }
@@ -189,11 +212,14 @@ int nqueens(int proc, ull i, ull n) {
   }
 
   //iff we made it to here, free and return 1
-  //for (int x = 0; x < n; x++)
-  //  printf("%lld ", perm[x]);
-  //printf("\n");
+  int index = 0;
+  for (int i=0; i < n; i++){
+    index += sprintf(&msg[index], "%d", perm[i]);
+    msg[index++] = '#';
+  }
 
-  MPI_Send(perm,n,MPI_INT,0,0,MPI_COMM_WORLD);
+  //printf("to com meu char aqui convertido: %s",msg);
+  MPI_Send(msg,100,MPI_CHAR,0,0,MPI_COMM_WORLD);
 
   //free(perm);
   return 1;
