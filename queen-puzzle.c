@@ -43,6 +43,7 @@ int main(int argc, char*argv[]) {
   int rnk, sze;    
   ull i = 0 , n = 0, total = 0, subtot = 0;
   double elapsed_time;
+  MPI_Status status;
 
   // initialize mpi
   MPI_Init(&argc, &argv);
@@ -63,17 +64,32 @@ int main(int argc, char*argv[]) {
     // set value of n from command line and create an array of length n
     n = atoi(argv[1]);
 
-    // find the max size for the loop below
+    // encontra o número de combinações possíveis
     ull max = factorial(n);
+    //printf("max (fatorial de %d) é %lld\n", n, max);
 
-    // start at the rnkth permutation and move up sze permutations at a time till at end
-    for( i = rnk; i < max; i+=sze ) {
-      subtot += nqueens(rnk, i, n);
+
+
+
+    if (rnk != 0){
+      // start at the rnkth permutation and move up sze permutations at a time till at end
+      for( i = rnk; i < max; i+=(sze-1) ) {
+        subtot += nqueens(rnk, i, n);
+      }
+    }else{
+      int *perm = (int *)calloc(n, sizeof(int));
+      MPI_Recv(perm,n,MPI_INT,1,0,MPI_COMM_WORLD,&status);
+
+      for (int x = 0; x < n; x++)
+        printf("%d ", perm[x]);
+      printf("\n");
+
     }
 
     // reduce subtotal into grand total
-    MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-    
+    //MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+
   }
 
   // find ending time
@@ -107,24 +123,42 @@ int nqueens(int proc, ull i, ull n) {
   int *fact = (int *)calloc(n, sizeof(int));
   int *perm = (int *)calloc(n, sizeof(int));
 
+//printf("sou o processo %d e estou calculando a combinacao %d para tamanho %d\n", proc, i, n);
+
   // calculate factorial based on i, store in perm
   fact[b] = 1;
   while(++b < (int)n) {
     fact[b] = fact[b-1]*b;
+    //printf("fact[%d] = %lld\n", b, fact[b]);
   }
   
+  //monta o grupo de combinações base
   for(b = 0; b < (int)n; ++b) {
     perm[b] = i / fact[n - 1 - b];
     i = i % fact[n - 1 - b];
+    //printf("%lld ",perm[b]);
   }
+  //printf("\n");
 
+  // percorre da direita para a esquerda, e sempre que encontra
+  // alguma linha em que a rainha esteja na mesma coluna ou em alguma coluna
+  // à esquerda, move a rainha mais adiante. exemplo:
+  // orginal: 0 1 1 0
+  // posicionamento: [0] 1  1 (x) | 0 1 1 1
+  // posicionamento: [0][1](x) 1  | 0 1 3 1
+  // posicionamento: [0](x) 2  1  | 0 2 3 1
   for(b = n - 1; b > 0; --b) {
     for(a = b - 1; a >= 0; --a) {
       if(perm[a] <= perm[b]) {
-	perm[b]++;
+	      perm[b]++;
       }
     }
   }
+
+  //apenas imprime a combinacao encontrada
+  //for (int x = 0; x < n; x++)
+  //  printf("%lld ", perm[x]);
+  //printf("\n");
 
   // free up fact array now
   free(fact);
@@ -137,8 +171,9 @@ int nqueens(int proc, ull i, ull n) {
     for(int k = j+1, dist = 1; k < (int)n; k++, dist++) {
       // check if the value +/- dist is equal (means its a diagnoal)
       if(val - dist == perm[k] || val + dist  == perm[k]) {
-	free(perm);
-	return 0;
+        free(perm);
+        //printf("erro\n");
+        return 0;
       }
     }
 
@@ -146,14 +181,21 @@ int nqueens(int proc, ull i, ull n) {
     for(int k = j-1, dist = 1; k >= 0; k--, dist++) {
       // check if the value +/- dist is equal (means its a diagonal)
       if(val - dist == perm[k] || val + dist  == perm[k]) {
-	free(perm);
-	return 0;
+        free(perm);
+        //printf("erro\n");
+        return 0;
       }
     }
   }
 
   //iff we made it to here, free and return 1
-  free(perm);
+  //for (int x = 0; x < n; x++)
+  //  printf("%lld ", perm[x]);
+  //printf("\n");
+
+  MPI_Send(perm,n,MPI_INT,0,0,MPI_COMM_WORLD);
+
+  //free(perm);
   return 1;
 }
  
