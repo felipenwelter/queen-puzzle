@@ -31,6 +31,24 @@ typedef unsigned long long ull;
 int nqueens(int proc, ull i, ull n);
 ull factorial(ull n);
 
+int findPosition(int pos, int line, int size){
+  return (size * line) + pos;
+}
+
+int formatMessage(int n, int *perm, char *msg){
+  int index = 0;
+  for (int i=0; i < n; i++){
+    index += sprintf(&msg[index], "%d", findPosition(perm[i],i,n));
+    msg[index++] = ';';
+  }
+  return 0;
+}
+
+
+
+
+
+
 /**
  * int main(int argc, char*argv[])
  * - The starting point of the program, calculates 
@@ -69,7 +87,7 @@ int main(int argc, char*argv[]) {
     //printf("max (fatorial de %d) é %lld\n", n, max);
 
 
-
+    int group;
 
     if (rnk != 0){
       // start at the rnkth permutation and move up sze permutations at a time till at end
@@ -89,18 +107,12 @@ int main(int argc, char*argv[]) {
           printf("%s\n",msg);
         }
         
-
       }
-
-      
-
-
 
     }
 
     // reduce subtotal into grand total
     MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
 
   }
 
@@ -119,6 +131,12 @@ int main(int argc, char*argv[]) {
   MPI_Finalize();
   return 0;
 }
+
+
+
+
+
+
 
 /**
  * int nqueens(int proc, int*vals, ull i, ull n)
@@ -173,6 +191,13 @@ int nqueens(int proc, ull i, ull n) {
   //  printf("%lld ", perm[x]);
   //printf("\n");
 
+
+  //char solutions[10000];
+  //searchSolutions(&solutions[0]);
+
+
+
+
   // free up fact array now
   free(fact);
 
@@ -212,11 +237,15 @@ int nqueens(int proc, ull i, ull n) {
   }
 
   //iff we made it to here, free and return 1
-  int index = 0;
-  for (int i=0; i < n; i++){
-    index += sprintf(&msg[index], "%d", perm[i]);
-    msg[index++] = '#';
-  }
+  formatMessage(n, perm, &msg[0]);
+  //printf("%s ! !\n",msg);
+
+  char filename[100];
+  FILE *fmat;
+  sprintf(filename, "solution%lld.txt",n);
+  fmat = fopen(filename, "w");
+  fprintf(fmat,msg);
+  fclose(fmat);
 
   //printf("to com meu char aqui convertido: %s",msg);
   MPI_Send(msg,100,MPI_CHAR,0,0,MPI_COMM_WORLD);
@@ -233,3 +262,5 @@ int nqueens(int proc, ull i, ull n) {
 ull factorial(ull n) {
   return (n == 1 || n == 0) ? 1 : factorial( n - 1 ) * n;
 }
+
+
