@@ -1,22 +1,15 @@
 /*****************************************************
  * Name: nqueens.c 
- * Author: Lucas Carpenter
- * Date: 12/11/2018
- * 
- * For CSC410 Parallel Computing course, Final program
+ * Author: Felipe Nathan Welter
+ * Date: 13/11/2019
  *
- * Compiling: mpic++ -Wall -o nqueens nqueens.c
- * Usage: mpirun -np <num processors> ./nqueens <n>
- * Description: Program takes in the size of the board
- *  as an n value, MPI is initialized and loops from 
- *  rank to factorial(n) incrementing by size each iteration.
- *  Inside the loop the i-th permutation of a sorted array of 
- *  incrementing integers is calculated and a check is done 
- *  to make sure that no 'queen' is on any diagonal. If any of 
- *  the checks fail, then that iteration short-circuits and 
- *  checks the next iteration. If the loop reaches the end, 
- *  then the counter is incremented. The time of execution and 
- *  number of solutions found are then output.
+ * Usage: mpirun -np <num processors> nqueens <n>
+ * Description: Program that solves the problem of placing
+ *  n chess queen on an n x n chessboard so that no two
+ *  queens threaten each other. The solution is saved in
+ *  a txt file, and the program is parallelized.
+ *  The factoring logic is based on a program of Lucas
+ *  Carpenter available on github as /lukas783.
  *
  *****************************************************/
 #include <string.h>
@@ -26,10 +19,7 @@
 #include <unistd.h>
 
 static int tag_answer_count = 0;
-static int tag_answer_size = 1;
-static int tag_answer = 2;
 static int tag_answer_int = 3;
-
 
 typedef unsigned long long ull;
 
@@ -41,14 +31,13 @@ int findPosition(int pos, int line, int size);
 
 /**
  * int main(int argc, char*argv[])
- * - The starting point of the program, calculates 
- * the number of solutions for the n-queens problem
- * given an input n for an n x n board using MPI.
+ * Main function that control the threads that
+*  calculates the possible answers.
  **/
 int main(int argc, char*argv[]) {
 
-  // declare some variables
-  int rnk, sze;    
+  // declare variables
+  int rank, sze;    
   ull i = 0 , n = 0, total = 0, subtot = 0;
   MPI_Status status;
   double elapsed_time;
@@ -57,7 +46,7 @@ int main(int argc, char*argv[]) {
   MPI_Init(&argc, &argv);
   
   // set rank and size of all procs
-  MPI_Comm_rank(MPI_COMM_WORLD, &rnk);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &sze);
 
   // set start time
@@ -72,7 +61,7 @@ int main(int argc, char*argv[]) {
 
   // find out if program has correct command line arguments, prompt if not
   if(argc != 2) {
-    if(rnk == 0)
+    if(rank == 0)
       printf("Invalid number of command line arguments.\nFormat should be ./nqueens <n>\n\n");
   } else {
     // set value of n from command line and create an array of length n
@@ -82,18 +71,18 @@ int main(int argc, char*argv[]) {
     ull max = factorial(n);
 
     int group_size = max/(sze);
-    int resto = (sze == (rnk+1) ? (max % sze) : 0);
+    int resto = (sze == (rank+1) ? (max % sze) : 0);
     //printf("somos em %d groups. max = %lld sze = %d\n", group_size, max, sze);
-    // start at the rnkth permutation and move up sze permutations at a time till at end
-    //for( i = rnk; i < max; i+=sze ) {
-      //sleep(rnk);
-      subtot += nqueens(rnk, i, n, group_size, resto);
-      int answer_count = rnk*10;
-      int answer_size = 0;
+    // start at the rankth permutation and move up sze permutations at a time till at end
+    //for( i = rank; i < max; i+=sze ) {
+      //sleep(rank);
+      subtot += nqueens(rank, i, n, group_size, resto);
+      int answer_count = rank*10;
+      //int answer_size = 0;
 
       
 
-      if (rnk == 0){
+      if (rank == 0){
 
         sprintf(filename, "solution%lld.txt",n);
         int ret = remove(filename);
@@ -106,11 +95,11 @@ int main(int argc, char*argv[]) {
 
         for (int y = 0; y < sze; y++){
           MPI_Recv(&answer_count,1,MPI_INT,y,tag_answer_count,MPI_COMM_WORLD,&status);
-          MPI_Recv(&answer_size,1,MPI_INT,y,tag_answer_size,MPI_COMM_WORLD,&status);
+          //MPI_Recv(&answer_size,1,MPI_INT,y,tag_answer_size,MPI_COMM_WORLD,&status);
           //printf("answer size received = %d\n", answer_size);
-          if (answer_size > 0){
-            char answer[answer_size];
-            MPI_Recv(answer,answer_size,MPI_CHAR,y,tag_answer,MPI_COMM_WORLD,&status);
+          if (answer_count > 0){
+            //char answer[answer_size];
+            //MPI_Recv(answer,answer_size,MPI_CHAR,y,tag_answer,MPI_COMM_WORLD,&status);
             //printf("Just received %d answers from thread %d, sized %d, what is: %s\n\n", answer_count, y, answer_size, answer);
 
             int *answer_int = (int*) calloc( answer_count * n,sizeof(int));
@@ -162,7 +151,7 @@ int main(int argc, char*argv[]) {
   elapsed_time += MPI_Wtime();
 
   // if root rank, output solutions found and time taken
-  if(0 == rnk) {
+  if(0 == rank) {
     printf("Program executed in %8.3f ms\n", 1000*elapsed_time);
     printf("Total number of solutions found: %llu\n\n", total);
     fflush(stdout);
@@ -188,8 +177,8 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
   int *fact = (int *)calloc(n, sizeof(int));
   //int *perm = (int *)calloc(n, sizeof(int));
 
-        char solutions[1000];
-        strcpy(solutions,"");
+        //char solutions[1000];
+        //strcpy(solutions,"");
         int *answer_list = (int*) calloc(gs+resto,sizeof(int));
 
         int **perms = (int**) calloc(gs+resto,sizeof(int *));
@@ -265,7 +254,7 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
 
 
   int answer_count = 0;
-  int answer_size = 0;
+  //int answer_size = 0;
 
   for (int p = 0; p < (gs+resto); p++){
 
@@ -309,12 +298,12 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
       answer_list[answer_count] = p;
       answer_count++;
       
-      char next_answer[200];
-      strcpy(next_answer,"");
-      formatMessage(n, perms[p], &next_answer[0]);
-      strncat(solutions, next_answer, strlen(next_answer));
+      //char next_answer[200];
+      //strcpy(next_answer,"");
+      //formatMessage(n, perms[p], &next_answer[0]);
+      //strncat(solutions, next_answer, strlen(next_answer));
       //printf("%s\n", solutions);
-      answer_size = strlen(solutions);
+      //answer_size = strlen(solutions);
       //printf("[%d] encontrei a solucao na posicao %d\n", proc, p);
       //for (int x = 0; x < n; x++){
       //  printf("%d ", perms[p][x]);
@@ -332,13 +321,13 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
 
 
   MPI_Send(&answer_count,1,MPI_INT,0,tag_answer_count,MPI_COMM_WORLD);
-  MPI_Send(&answer_size,1,MPI_INT,0,tag_answer_size,MPI_COMM_WORLD);
+  //MPI_Send(&answer_size,1,MPI_INT,0,tag_answer_size,MPI_COMM_WORLD);
 
-  if (answer_size > 0){
-    char answer[answer_size];
-    strncpy(answer,solutions,answer_size);
+  if (answer_count > 0){
+    //char answer[answer_size];
+    //strncpy(answer,solutions,answer_size);
     //printf("vou mandar %s (%d)", answer, answer_size);
-    MPI_Send(answer,answer_size,MPI_CHAR,0,tag_answer,MPI_COMM_WORLD);
+    //MPI_Send(answer,answer_size,MPI_CHAR,0,tag_answer,MPI_COMM_WORLD);
     
     int *answer_int = (int*) calloc( answer_count * n,sizeof(int));
     int index = 0;
