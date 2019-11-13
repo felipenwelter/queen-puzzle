@@ -28,6 +28,7 @@
 static int tag_answer_count = 0;
 static int tag_answer_size = 1;
 static int tag_answer = 2;
+static int tag_answer_int = 3;
 
 
 typedef unsigned long long ull;
@@ -63,6 +64,12 @@ int main(int argc, char*argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);
   elapsed_time = -MPI_Wtime();
 
+
+
+            char filename[100];
+            FILE *fmat;
+
+
   // find out if program has correct command line arguments, prompt if not
   if(argc != 2) {
     if(rnk == 0)
@@ -79,6 +86,7 @@ int main(int argc, char*argv[]) {
     //printf("somos em %d groups. max = %lld sze = %d\n", group_size, max, sze);
     // start at the rnkth permutation and move up sze permutations at a time till at end
     //for( i = rnk; i < max; i+=sze ) {
+      //sleep(rnk);
       subtot += nqueens(rnk, i, n, group_size, resto);
       int answer_count = rnk*10;
       int answer_size = 0;
@@ -86,6 +94,16 @@ int main(int argc, char*argv[]) {
       
 
       if (rnk == 0){
+
+        sprintf(filename, "solution%lld.txt",n);
+        int ret = remove(filename);
+
+        if(ret == 0) {
+          printf("File deleted successfully");
+        } else {
+          printf("Error: unable to delete the file");
+        }
+
         for (int y = 0; y < sze; y++){
           MPI_Recv(&answer_count,1,MPI_INT,y,tag_answer_count,MPI_COMM_WORLD,&status);
           MPI_Recv(&answer_size,1,MPI_INT,y,tag_answer_size,MPI_COMM_WORLD,&status);
@@ -93,7 +111,38 @@ int main(int argc, char*argv[]) {
           if (answer_size > 0){
             char answer[answer_size];
             MPI_Recv(answer,answer_size,MPI_CHAR,y,tag_answer,MPI_COMM_WORLD,&status);
-            printf("Just received %d answers from thread %d, sized %d, what is: %s\n\n", answer_count, y, answer_size, answer);
+            //printf("Just received %d answers from thread %d, sized %d, what is: %s\n\n", answer_count, y, answer_size, answer);
+
+            int *answer_int = (int*) calloc( answer_count * n,sizeof(int));
+            MPI_Recv(&(answer_int[0]),(answer_count*n),MPI_INT,y,tag_answer_int,MPI_COMM_WORLD,&status);            
+            //printf("   recebido: ");
+            //for (int t = 0; t < (answer_count * n); t++){
+            //  printf("%d ", answer_int[t]);
+            //}
+            //printf("\n");
+            
+            
+
+
+            fmat = fopen(filename, "a");
+            int position = 0;
+            int index = 0;
+
+            for (int t = 0; t < (answer_count * n); t++){
+              position = findPosition(answer_int[t], t-(index*n) ,n);
+              fprintf(fmat,"%d;", position);
+              //printf("%d mod %d = %d\t", t+1, answer_count, ((t+1) % answer_count));
+              if (( (t+1) % n) == 0) {
+                fprintf(fmat,"\n");
+                index++;
+              }
+            }
+
+            fclose(fmat);
+
+
+
+
           }
           
         }
@@ -141,7 +190,7 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
 
         char solutions[1000];
         strcpy(solutions,"");
-        
+        int *answer_list = (int*) calloc(gs+resto,sizeof(int));
 
         int **perms = (int**) calloc(gs+resto,sizeof(int *));
         for ( int t = 0; t < (gs+resto); t++ ) {
@@ -150,6 +199,9 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
             printf ("** Erro: Memoria Insuficiente **\n");
           }
         }
+
+        
+      
   
 
 
@@ -253,6 +305,8 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
     }
 
     if (err == 0){
+
+      answer_list[answer_count] = p;
       answer_count++;
       
       char next_answer[200];
@@ -273,6 +327,10 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
     //return 1;
   }
 
+
+
+
+
   MPI_Send(&answer_count,1,MPI_INT,0,tag_answer_count,MPI_COMM_WORLD);
   MPI_Send(&answer_size,1,MPI_INT,0,tag_answer_size,MPI_COMM_WORLD);
 
@@ -281,6 +339,28 @@ int nqueens(int proc, ull i, ull n, ull gs, int resto) {
     strncpy(answer,solutions,answer_size);
     //printf("vou mandar %s (%d)", answer, answer_size);
     MPI_Send(answer,answer_size,MPI_CHAR,0,tag_answer,MPI_COMM_WORLD);
+    
+    int *answer_int = (int*) calloc( answer_count * n,sizeof(int));
+    int index = 0;
+
+    for (int h = 0; h < answer_count; h++){
+      int answer_pos = answer_list[h];
+      //printf("[%d] encontrei uma resposta na posicao %d\n", proc,answer_pos);
+      
+      for (int t = 0; t < n; t++){
+        answer_int[index++] = perms[answer_pos][t];
+      }
+
+    }
+
+    //for (int t = 0; t < (answer_count * n); t++){
+    //  printf("%d ", answer_int[t]);
+    //}
+    //printf("\n");
+
+    MPI_Send(&(answer_int[0]),(answer_count*n),MPI_INT,0,tag_answer_int,MPI_COMM_WORLD);
+
+
   }
 
 
@@ -311,4 +391,5 @@ int formatMessage(int n, int *perm, char *msg){
 
 int findPosition(int pos, int line, int size){
   return (size * line) + pos;
+  //return pos;
 }
