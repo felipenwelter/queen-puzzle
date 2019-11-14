@@ -44,7 +44,7 @@ int main(int argc, char*argv[]) {
   int rank, sze;    
   MPI_Status status, status2;
   MPI_Request recv_request;
-  //MPI_Request recv_request2;
+  MPI_Request recv_request2;
 
   char filename[100];
   FILE *fmat;
@@ -57,7 +57,7 @@ int main(int argc, char*argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &sze);
 
   //set start time
-  MPI_Barrier(MPI_COMM_WORLD);
+  //MPI_Barrier(MPI_COMM_WORLD);
   elapsed_time = -MPI_Wtime();
 
   if (sze == 1){
@@ -91,6 +91,7 @@ int main(int argc, char*argv[]) {
     
     // call threads sending the amount of possibilities to calculate, get number of solutions found
     subtot += nqueens(rank, i, n, group_size, over);
+    //MPI_Barrier(MPI_COMM_WORLD);
   
     // the master thread receives all the results and save in file
     if (rank == 0){
@@ -98,7 +99,7 @@ int main(int argc, char*argv[]) {
       for (int y = 0; y < sze; y++){
         // wait for the 1st response, with the number of solutions found
         MPI_Irecv(&answer_count,1,MPI_INT,y,tag_answer_count,MPI_COMM_WORLD,&recv_request);
-        MPI_Wait(&recv_request, &status);
+        MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
         //printf("[%d] from thread %d received the amount of %d\n", rank, y, answer_count);
 
         // if the thread found more than one valid solution, then format and append in file
@@ -108,8 +109,9 @@ int main(int argc, char*argv[]) {
           int *answer_int = (int*) calloc( answer_count * n,sizeof(int));
           
           // wait to receive all the answers as an integer array
-          MPI_Recv(&(answer_int[0]),(answer_count*n),MPI_INT,y,tag_answer_int,MPI_COMM_WORLD, &status2);
-          //MPI_Wait(&recv_request2, &status2);
+          //MPI_Recv(&(answer_int[0]),(answer_count*n),MPI_INT,y,tag_answer_int,MPI_COMM_WORLD, &status2);
+          MPI_Irecv(&(answer_int[0]),(answer_count*n),MPI_INT,y,tag_answer_int,MPI_COMM_WORLD,&recv_request2);
+          MPI_Wait(&recv_request2, MPI_STATUS_IGNORE);
 
           //append the solutions sent by the thread in the end of file
           fmat = fopen(filename, "a");
@@ -136,7 +138,7 @@ int main(int argc, char*argv[]) {
     MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  //MPI_Barrier(MPI_COMM_WORLD);
   elapsed_time += MPI_Wtime();
 
   // print amount of solutions found and time
@@ -166,7 +168,7 @@ int nqueens(int proc, ull i, ull n, int gs, int over) {
   int *fact = (int *)calloc(n, sizeof(int));
 
   MPI_Request send_request;
-  //MPI_Request send_request2;
+  MPI_Request send_request2;
 
   printf("[%d] thread started\n", proc);
 
@@ -271,9 +273,10 @@ int nqueens(int proc, ull i, ull n, int gs, int over) {
     }
 
     // send an integer array of solutions to the master
-    MPI_Send(&(answer_int[0]),(answer_count*n),MPI_INT,0,tag_answer_int,MPI_COMM_WORLD);
+    //MPI_Send(&(answer_int[0]),(answer_count*n),MPI_INT,0,tag_answer_int,MPI_COMM_WORLD);
+    MPI_Isend(&(answer_int[0]),(answer_count*n),MPI_INT,0,tag_answer_int,MPI_COMM_WORLD, &send_request2);
   }
-  
+
   printf("[%d] thread finished\n", proc);
 
   //free(perm);
