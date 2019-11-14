@@ -42,7 +42,7 @@ int main(int argc, char*argv[]) {
   double elapsed_time;
 
   int rank, sze;    
-  MPI_Status status, status2;
+  //MPI_Status status, status2;
   MPI_Request recv_request;
   MPI_Request recv_request2;
 
